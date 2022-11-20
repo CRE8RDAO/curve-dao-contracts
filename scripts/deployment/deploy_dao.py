@@ -10,9 +10,17 @@ from brownie import (
     VotingEscrow,
     accounts,
     history,
+    Contract,
+    FeeDistributor,
+    chain
 )
 
 from . import deployment_config as config
+# modify me prior to deployment on mainnet!
+DEPLOYER = accounts.at("0x7EeAC6CDdbd1D0B8aF061742D41877D7F707289a", force=True)
+
+OWNER_ADMIN = "0x5195858f396B11F8B11EDA1b0E90CC49D57CAa0c"
+EMERGENCY_ADMIN = "0x397A7EC90bb4f0e89Ffd2Fb3269a3ef295d4f84A"
 
 
 def live_part_one():
@@ -33,11 +41,7 @@ def live_part_two():
 
 
 def development():
-    if len(accounts) == 0:  # if deploying to not locally
-        print("accounts", accounts)
-        dev = accounts.load('100')
-    else:
-        dev = accounts[0]
+    dev = get_admin()
     token, voting_escrow = deploy_part_one(dev)
     print(token, voting_escrow)
     # deploy_part_two(dev, token, voting_escrow)
@@ -65,34 +69,44 @@ def deploy_part_one(admin, confs=1, deployments_json=None):
 
 
 def deploy_part_two(admin, token, voting_escrow, confs=1, deployments_json=None):
-    # gauge_controller = GaugeController.deploy(
-    #     token, voting_escrow, {"from": admin, "required_confs": confs}
-    # )
-    # for name, weight in GAUGE_TYPES:
-    #     gauge_controller.add_type(name, weight, {"from": admin, "required_confs": confs})
-
-    # pool_proxy = PoolProxy.deploy({"from": admin, "required_confs": confs})
-    # minter = Minter.deploy(token, gauge_controller, {"from": admin, "required_confs": confs})
-    # token.set_minter(minter, {"from": admin, "required_confs": confs})
 
     deployments = {
         "ERC20CRV": token.address,
         "VotingEscrow": voting_escrow.address,
     }
-    # for name, (lp_token, weight) in POOL_TOKENS.items():
-    #     gauge = LiquidityGauge.deploy(lp_token, minter, {"from": admin, "required_confs": confs})
-    #     gauge_controller.add_gauge(gauge, 0, weight, {"from": admin, "required_confs": confs})
-    #     deployments["LiquidityGauge"][name] = gauge.address
-
-    # for (name, (lp_token, reward_claim, reward_token, weight)) in REWARD_POOL_TOKENS.items():
-    #     gauge = LiquidityGaugeReward.deploy(
-    #         lp_token, minter, reward_claim, reward_token, {"from": admin, "required_confs": confs}
-    #     )
-    #     gauge_controller.add_gauge(gauge, 0, weight, {"from": admin, "required_confs": confs})
-    #     deployments["LiquidityGaugeReward"][name] = gauge.address
 
     print(f"Deployment complete! Total gas used: {sum(i.gas_used for i in history)}")
     if deployments_json is not None:
         with open(deployments_json, "w") as fp:
             json.dump(deployments, fp)
         print(f"Deployment addresses saved to {deployments_json}")
+
+
+def get_admin():
+    print("Deploying on chain id:", chain.id)
+    if chain.id == 5:  # if deploying to not locally
+        dev = accounts.load('100')
+    else:
+        dev = accounts[0]
+    print("deploying with account:", dev)
+    return dev
+
+
+def test():
+    dev = get_admin()
+    distributor = deploy_fee_distributor(dev)
+    print(distributor)
+
+
+# voting_escrow is goerli and fee_token is default ERC20
+def deploy_fee_distributor(admin, voting_escrow="0xa5ade372ea523e407db1bd8d1d0cd3fbf5fee9d4", fee_token="0xb94f5916611df8a01c2804938ee17e291dbeaf81"):
+    start_time = 1600300800
+    distributor = FeeDistributor.deploy(
+        voting_escrow,  # VotingEscrow
+        start_time,
+        Contract(fee_token),
+        OWNER_ADMIN,
+        EMERGENCY_ADMIN,
+        {"from": admin},
+    )
+    return distributor
