@@ -9,7 +9,7 @@ from brownie import (
     FeeDistributor,
     chain
 )
-
+# TODO: Need to make sure that admin are right.
 from . import deployment_config as config
 # modify me prior to deployment on mainnet!
 DEPLOYER = accounts.at("0x7EeAC6CDdbd1D0B8aF061742D41877D7F707289a", force=True)
@@ -36,6 +36,7 @@ def deploy(admin, confs=1, deployments_json=None):
         "Vote-escrowed testAGG",
         "testLAGG",
         "testLAGG_1.0.0",
+        "0x397A7EC90bb4f0e89Ffd2Fb3269a3ef295d4f84A",
         {"from": admin, "required_confs": confs},
     )
 
@@ -45,16 +46,17 @@ def deploy(admin, confs=1, deployments_json=None):
     distributor = FeeDistributor.deploy(
         voting_escrow,  # VotingEscrow
         start_time,
-        Contract(fee_token),
+        fee_token,
         OWNER_ADMIN,
         EMERGENCY_ADMIN,
-        {"from": admin},
+        {"from": admin}
     )
     deployments = {
         "ERC20": token.address,
-        "VotingEscrow": voting_escrow.address,
+        "VotingEscrow": voting_escrow,
         "FeeDistributor": distributor.address
     }
+
     if deployments_json is not None:
         with open(deployments_json, "w") as fp:
             json.dump(deployments, fp)

@@ -111,17 +111,19 @@ future_smart_wallet_checker: public(address)
 smart_wallet_checker: public(address)
 
 admin: public(address)  # Can and will be a smart contract
+emergency_admin: public(address) 
 future_admin: public(address)
 
 
 @external
-def __init__(token_addr: address, _name: String[64], _symbol: String[32], _version: String[32]):
+def __init__(token_addr: address, _name: String[64], _symbol: String[32], _version: String[32], _emergency_admin: address):
     """
     @notice Contract constructor
     @param token_addr `ERC20CRV` token address
     @param _name Token name
     @param _symbol Token symbol
     @param _version Contract version - required for Aragon compatibility
+    @param _emergency_admin emergency admin address
     """
     self.admin = msg.sender
     self.token = token_addr
@@ -137,6 +139,7 @@ def __init__(token_addr: address, _name: String[64], _symbol: String[32], _versi
     self.name = _name
     self.symbol = _symbol
     self.version = _version
+    # self.emergency_admin = emergency_admin
 
 
 @external
@@ -145,7 +148,7 @@ def commit_transfer_ownership(addr: address):
     @notice Transfer ownership of VotingEscrow contract to `addr`
     @param addr Address to have ownership transferred to
     """
-    assert msg.sender == self.admin  # dev: admin only
+    assert msg.sender == self.admin or msg.sender == self.emergency_admin  # dev: admin only
     self.future_admin = addr
     log CommitOwnership(addr)
 
@@ -155,7 +158,7 @@ def apply_transfer_ownership():
     """
     @notice Apply ownership transfer
     """
-    assert msg.sender == self.admin  # dev: admin only
+    assert msg.sender == self.admin or msg.sender == self.emergency_admin  # dev: admin only
     _admin: address = self.future_admin
     assert _admin != ZERO_ADDRESS  # dev: admin not set
     self.admin = _admin
@@ -426,6 +429,25 @@ def create_lock(_value: uint256, _unlock_time: uint256):
 
     self._deposit_for(msg.sender, _value, unlock_time, _locked, CREATE_LOCK_TYPE)
 
+@external
+@nonreentrant('lock')
+def create_lock_on_behalf(_addr: address, _value: uint256, _unlock_time: uint256):
+    """
+    @notice Deposit and lock `_value` tokens for `_addr` and lock until `_unlock_time`
+    @param _addr User's wallet address
+    @param _value Amount to deposit
+    @param _unlock_time Epoch time when tokens unlock, rounded down to whole weeks
+    """
+    self.assert_not_contract(_addr)
+    unlock_time: uint256 = (_unlock_time / WEEK) * WEEK  # Locktime is rounded down to weeks
+    _locked: LockedBalance = self.locked[_addr]
+    assert msg.sender == self.admin  # dev: admin only
+    assert _value > 0  # dev: need non-zero value
+    assert _locked.amount == 0, "Withdraw old tokens first"
+    assert unlock_time > block.timestamp, "Can only lock until time in the future"
+    assert unlock_time <= block.timestamp + MAXTIME, "Voting lock can be 4 years max"
+
+    self._deposit_for(_addr, _value, unlock_time, _locked, CREATE_LOCK_TYPE)
 
 @external
 @nonreentrant('lock')

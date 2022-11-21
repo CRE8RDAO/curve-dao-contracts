@@ -54,6 +54,7 @@ def deploy_part_one(admin, confs=1, deployments_json=None):
         "Vote-escrowed CRV",
         "veCRV",
         "veCRV_1.0.0",
+        "0x397A7EC90bb4f0e89Ffd2Fb3269a3ef295d4f84A",
         {"from": admin, "required_confs": confs},
     )
     deployments = {
