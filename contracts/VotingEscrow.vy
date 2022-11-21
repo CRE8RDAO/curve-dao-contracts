@@ -139,7 +139,7 @@ def __init__(token_addr: address, _name: String[64], _symbol: String[32], _versi
     self.name = _name
     self.symbol = _symbol
     self.version = _version
-    # self.emergency_admin = emergency_admin
+    self.emergency_admin = _emergency_admin
 
 
 @external

@@ -7,10 +7,13 @@ from brownie import (
     history,
     Contract,
     FeeDistributor,
-    chain
+    chain,
+    network
 )
 # TODO: Need to make sure that admin are right.
 from . import deployment_config as config
+network.priority_fee("4 gwei")
+
 # modify me prior to deployment on mainnet!
 DEPLOYER = accounts.at("0x7EeAC6CDdbd1D0B8aF061742D41877D7F707289a", force=True)
 
@@ -36,7 +39,7 @@ def deploy(admin, confs=1, deployments_json=None):
         "Vote-escrowed testAGG",
         "testLAGG",
         "testLAGG_1.0.0",
-        "0x397A7EC90bb4f0e89Ffd2Fb3269a3ef295d4f84A",
+        "0x069e85d4f1010dd961897dc8c095fbb5ff297434",
         {"from": admin, "required_confs": confs},
     )
 
