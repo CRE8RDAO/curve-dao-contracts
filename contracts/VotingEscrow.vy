@@ -382,6 +382,39 @@ def _deposit_for(_addr: address, _value: uint256, unlock_time: uint256, locked_b
     log Deposit(_addr, _value, _locked.end, type, block.timestamp)
     log Supply(supply_before, supply_before + _value)
 
+@internal
+def _deposit_on_behalf(_addr: address, _value: uint256, unlock_time: uint256, locked_balance: LockedBalance, type: int128, _msg_sender: address):
+    """
+    @notice Deposit and lock tokens for a user
+    @param _addr User's wallet address
+    @param _value Amount to deposit
+    @param unlock_time New time when to unlock the tokens, or 0 if unchanged
+    @param locked_balance Previous locked amount / timestamp
+    @param _msg_sender msg.sender pass through so that msig can transfer tokens on behalf
+    """
+    _locked: LockedBalance = locked_balance
+    supply_before: uint256 = self.supply
+
+    self.supply = supply_before + _value
+    old_locked: LockedBalance = _locked
+    # Adding to existing lock, or if a lock is expired - creating a new one
+    _locked.amount += convert(_value, int128)
+    if unlock_time != 0:
+        _locked.end = unlock_time
+    self.locked[_addr] = _locked
+
+    # Possibilities:
+    # Both old_locked.end could be current or expired (>/< block.timestamp)
+    # value == 0 (extend lock) or value > 0 (add to lock or extend lock)
+    # _locked.end > block.timestamp (always)
+    self._checkpoint(_addr, old_locked, _locked)
+
+    if _value != 0:
+        assert ERC20(self.token).transferFrom(_msg_sender, self, _value)
+
+    log Deposit(_addr, _value, _locked.end, type, block.timestamp)
+    log Supply(supply_before, supply_before + _value)
+
 
 @external
 def checkpoint():
@@ -438,7 +471,7 @@ def create_lock_on_behalf(_addr: address, _value: uint256, _unlock_time: uint256
     @param _value Amount to deposit
     @param _unlock_time Epoch time when tokens unlock, rounded down to whole weeks
     """
-    self.assert_not_contract(_addr)
+    self.assert_not_contract(msg.sender)
     unlock_time: uint256 = (_unlock_time / WEEK) * WEEK  # Locktime is rounded down to weeks
     _locked: LockedBalance = self.locked[_addr]
     assert msg.sender == self.admin  # dev: admin only
@@ -447,7 +480,7 @@ def create_lock_on_behalf(_addr: address, _value: uint256, _unlock_time: uint256
     assert unlock_time > block.timestamp, "Can only lock until time in the future"
     assert unlock_time <= block.timestamp + MAXTIME, "Voting lock can be 4 years max"
 
-    self._deposit_for(_addr, _value, unlock_time, _locked, CREATE_LOCK_TYPE)
+    self._deposit_on_behalf(_addr, _value, unlock_time, _locked, CREATE_LOCK_TYPE, msg.sender)
 
 @external
 @nonreentrant('lock')

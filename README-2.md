@@ -9,9 +9,19 @@ pip install eth-brownie
 brownie accounts new 100 # create a brownie account 100 and send some ETH to it to deploy
 ```
 
+```bash
+brownie networks add Ethereum arbitrum-goerli host=https://mainnet.infura.io/v3/7fb2e85974b5456cac23d39968f8eac1 chainid=421613
+```
+
 # Setup
 
 ```bash
 brownie run scripts/deployment/deploy_dao development --network mainnet-fork
 brownie run scripts/deployment/deploy_dao development --network goerli
+```
+
+# Other commands
+
+```bash
+brownie console --network mainnet-fork
 ```
