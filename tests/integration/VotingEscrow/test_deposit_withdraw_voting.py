@@ -22,10 +22,11 @@ class StateMachine:
     # number of weeks to advance the clock
     st_sleep_duration = strategy("uint", min_value=1, max_value=4)
 
-    def __init__(self, accounts, token, voting_escrow):
+    def __init__(self, accounts, token, voting_escrow, admin):
         self.accounts = accounts
         self.token = token
         self.voting_escrow = voting_escrow
+        self.admin = admin
 
         for acct in accounts:
             token._mint_for_testing(acct, 10 ** 40)
@@ -70,6 +71,45 @@ class StateMachine:
                 "value": st_value,
                 "unlock_time": tx.events["Deposit"]["locktime"],
             }
+
+    def rule_create_lock_on_behalf(self, st_account, st_value, st_lock_duration):
+        print('create lock on behalf')
+        print('state:', st_account, st_value, st_lock_duration)
+        unlock_time = (chain.time() + st_lock_duration * WEEK) // WEEK * WEEK
+
+        if st_value == 0:
+            with brownie.reverts("dev: need non-zero value"):
+                self.voting_escrow.create_lock_on_behalf(
+                    st_account, st_value, unlock_time, {"from": self.admin, "gas": GAS_LIMIT}
+                )
+
+        elif self.voting_balances[st_account]["value"] > 0:
+            with brownie.reverts("Withdraw old tokens first"):
+                self.voting_escrow.create_lock_on_behalf(
+                    st_account, st_value, unlock_time, {"from": self.admin, "gas": GAS_LIMIT}
+                )
+
+        elif unlock_time <= chain.time():
+            with brownie.reverts("Can only lock until time in the future"):
+                self.voting_escrow.create_lock_on_behalf(
+                    st_account, st_value, unlock_time, {"from": self.admin, "gas": GAS_LIMIT}
+                )
+
+        elif unlock_time > chain.time() + 86400 * 365 * 4:
+            with brownie.reverts("Voting lock can be 4 years max"):
+                self.voting_escrow.create_lock_on_behalf(
+                    st_account, st_value, unlock_time, {"from": self.admin, "gas": GAS_LIMIT}
+                )
+
+        else:
+            tx = self.voting_escrow.create_lock_on_behalf(
+                st_account, st_value, unlock_time, {"from": self.admin, "gas": GAS_LIMIT}
+            )
+            self.voting_balances[st_account] = {
+                "value": st_value,
+                "unlock_time": tx.events["Deposit"]["locktime"],
+            }
+            print(st_account, self.voting_balances[st_account])
 
     def rule_increase_amount(self, st_account, st_value):
         if st_value == 0:
@@ -151,8 +191,14 @@ class StateMachine:
         """
         Verify that token balances are correct.
         """
+        total_ve_balance = 0
+        total_token_balance = 0
+        num_accounts = 0
         for acct in self.accounts:
-            assert self.token.balanceOf(acct) == 10 ** 40 - self.voting_balances[acct]["value"]
+            num_accounts += 1
+            total_token_balance += self.voting_balances[acct]["value"]
+            total_ve_balance += self.token.balanceOf(acct)
+        assert total_ve_balance == num_accounts * 10 ** 40 - total_token_balance
 
     def invariant_escrow_current_balances(self):
         """
@@ -160,7 +206,6 @@ class StateMachine:
         """
         total_supply = 0
         timestamp = chain[-1].timestamp
-
         for acct in self.accounts:
             data = self.voting_balances[acct]
 
@@ -189,8 +234,14 @@ class StateMachine:
 
 def test_state_machine(state_machine, accounts, VotingEscrow):
     token = ERC20("", "", 18)
+    admin = accounts[0]
+    print(admin)
+    print('accounts')
+    print(accounts)
+    for a in accounts[:10]:
+        print(a)
     voting_escrow = VotingEscrow.deploy(
-        token, "Voting-escrowed CRV", "veCRV", "veCRV_0.99", {"from": accounts[0]}
+        token, "Voting-escrowed CRV", "veCRV", "veCRV_0.99", accounts[9], {"from": admin}
     )
-
-    state_machine(StateMachine, accounts[:10], token, voting_escrow, settings={"max_examples": 30})
+    state_machine(StateMachine, accounts[:10], token,
+                  voting_escrow, admin, settings={"max_examples": 30})

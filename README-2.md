@@ -25,3 +25,10 @@ brownie run scripts/deployment/deploy_dao development --network goerli
 ```bash
 brownie console --network mainnet-fork
 ```
+
+# Testing
+
+```bash
+brownie test tests/unitary/VotingEscrow tests/unitary/FeeDistribution tests/unitary/ERC20CRV
+brownie test tests/integration/VotingEscrow tests/integration/FeeDistributor tests/integration/ERC20CRV
+```
