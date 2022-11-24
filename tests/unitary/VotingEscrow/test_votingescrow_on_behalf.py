@@ -26,3 +26,8 @@ import brownie
 # -able to lock for 100 users
 # -able to deposit for 100 users
 # -able to lock for 50 users and deposit for 50 users
+
+
+# fee distributor
+# When do the payouts happen?
+# What happens when payouts happen every day
