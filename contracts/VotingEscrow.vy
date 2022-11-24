@@ -56,6 +56,10 @@ DEPOSIT_FOR_TYPE: constant(int128) = 0
 CREATE_LOCK_TYPE: constant(int128) = 1
 INCREASE_LOCK_AMOUNT: constant(int128) = 2
 INCREASE_UNLOCK_TIME: constant(int128) = 3
+DEPOSIT_FOR_ON_BEHALF_TYPE: constant(int128) = 4
+CREATE_LOCK_ON_BEHALF_TYPE: constant(int128) = 5
+
+
 
 
 event CommitOwnership:
@@ -385,7 +389,7 @@ def _deposit_for(_addr: address, _value: uint256, unlock_time: uint256, locked_b
 @internal
 def _deposit_on_behalf(_addr: address, _value: uint256, unlock_time: uint256, locked_balance: LockedBalance, type: int128, _msg_sender: address):
     """
-    @notice Deposit and lock tokens for a user
+    @notice Deposit and lock tokens for a user. The functionality should be almost the same as `_deposit_for` EXCEPT the `_msg_sender` transfers the erc20 instead of the _addr to the `_addr`s ve balance
     @param _addr User's wallet address
     @param _value Amount to deposit
     @param unlock_time New time when to unlock the tokens, or 0 if unchanged
@@ -416,13 +420,35 @@ def _deposit_on_behalf(_addr: address, _value: uint256, unlock_time: uint256, lo
     log Supply(supply_before, supply_before + _value)
 
 
+
+@internal
+def _create_lock_on_behalf(_addr: address, _value: uint256, _unlock_time: uint256, _msg_sender: address):
+    """
+    @notice Deposit and lock `_value` tokens for `_addr` and lock until `_unlock_time`
+    @param _addr User's wallet address
+    @param _value Amount to deposit
+    @param _unlock_time Epoch time when tokens unlock, rounded down to whole weeks
+    @param _msg_sender 
+    """
+    self.assert_not_contract(_msg_sender)
+    unlock_time: uint256 = (_unlock_time / WEEK) * WEEK  # Locktime is rounded down to weeks
+    _locked: LockedBalance = self.locked[_addr]
+    assert _msg_sender == self.admin  # dev: admin only
+    assert _value > 0  # dev: need non-zero value
+    assert _locked.amount == 0, "Withdraw old tokens first"
+    assert unlock_time > block.timestamp, "Can only lock until time in the future"
+    assert unlock_time <= block.timestamp + MAXTIME, "Voting lock can be 4 years max"
+
+    self._deposit_on_behalf(_addr, _value, _unlock_time, self.locked[_addr], CREATE_LOCK_ON_BEHALF_TYPE, _msg_sender)
+
+
+
 @external
 def checkpoint():
     """
     @notice Record global data to checkpoint
     """
     self._checkpoint(ZERO_ADDRESS, empty(LockedBalance), empty(LockedBalance))
-
 
 @external
 @nonreentrant('lock')
@@ -441,7 +467,6 @@ def deposit_for(_addr: address, _value: uint256):
     assert _locked.end > block.timestamp, "Cannot add to expired lock. Withdraw"
 
     self._deposit_for(_addr, _value, 0, self.locked[_addr], DEPOSIT_FOR_TYPE)
-
 
 @external
 @nonreentrant('lock')
@@ -471,16 +496,56 @@ def create_lock_on_behalf(_addr: address, _value: uint256, _unlock_time: uint256
     @param _value Amount to deposit
     @param _unlock_time Epoch time when tokens unlock, rounded down to whole weeks
     """
-    self.assert_not_contract(msg.sender)
-    unlock_time: uint256 = (_unlock_time / WEEK) * WEEK  # Locktime is rounded down to weeks
-    _locked: LockedBalance = self.locked[_addr]
-    assert msg.sender == self.admin  # dev: admin only
-    assert _value > 0  # dev: need non-zero value
-    assert _locked.amount == 0, "Withdraw old tokens first"
-    assert unlock_time > block.timestamp, "Can only lock until time in the future"
-    assert unlock_time <= block.timestamp + MAXTIME, "Voting lock can be 4 years max"
+    self._create_lock_on_behalf(_addr, _value, _unlock_time, msg.sender)
 
-    self._deposit_on_behalf(_addr, _value, unlock_time, _locked, CREATE_LOCK_TYPE, msg.sender)
+@internal
+def _deposit_for_on_behalf(_addr: address, _value: uint256, _msg_sender: address):
+    """
+    @notice Deposit `_value` tokens for `_addr` and add to the lock
+    @dev Anyone (even a smart contract) can deposit for someone else, but
+         cannot extend their locktime and deposit for a brand new user
+    @param _addr User's wallet address
+    @param _value Amount to add to user's lock
+    @param _msg_sender
+    """
+    _locked: LockedBalance = self.locked[_addr]
+    assert _value > 0  # dev: need non-zero value
+    assert _locked.amount > 0, "No existing lock found"
+    assert _locked.end > block.timestamp, "Cannot add to expired lock. Withdraw"
+
+    self._deposit_on_behalf(_addr, _value, 0, self.locked[_addr], DEPOSIT_FOR_ON_BEHALF_TYPE, _msg_sender)
+
+@external
+@nonreentrant('lock')
+def deposit_for_on_behalf(_addr: address, _value: uint256):
+    """
+    @notice Deposit `_value` tokens for `_addr` and add to the lock
+    @dev Anyone (even a smart contract) can deposit for someone else, but
+         cannot extend their locktime and deposit for a brand new user
+    @param _addr User's wallet address
+    @param _value Amount to add to user's lock
+    """
+    self._deposit_for_on_behalf(_addr, _value, msg.sender)
+
+@external
+@nonreentrant('lock')
+def batch_send(_addr: address[100], _value: uint256[100], _unlock_time: uint256[100]):
+    """
+    @notice Deposit or lock array of `_addr`
+    @param _addr array of user's wallet address
+    @param _value Amount to add to user's lock
+    @param _unlock_time array of unlock times for multiple addresses
+    """
+    assert msg.sender == self.admin   # dev: admin only
+    for i in range(0, 100):
+        if _addr[i] != ZERO_ADDRESS:  
+            if _unlock_time[i] == 0:
+                self._deposit_for_on_behalf(_addr[i], _value[i], msg.sender)
+            else:
+                self._create_lock_on_behalf(_addr[i], _value[i], _unlock_time[i], msg.sender)
+
+
+
 
 @external
 @nonreentrant('lock')
