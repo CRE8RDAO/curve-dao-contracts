@@ -536,6 +536,7 @@ def batch_send(_addr: address[100], _value: uint256[100], _unlock_time: uint256[
     @param _value Amount to add to user's lock
     @param _unlock_time array of unlock times for multiple addresses
     """
+
     assert msg.sender == self.admin   # dev: admin only
     for i in range(0, 100):
         if _addr[i] != ZERO_ADDRESS:  

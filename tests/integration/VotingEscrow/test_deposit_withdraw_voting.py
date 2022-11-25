@@ -73,7 +73,6 @@ class StateMachine:
             }
 
     def rule_create_lock_on_behalf(self, st_account, st_value, st_lock_duration):
-        print('create lock on behalf')
         print('state:', st_account, st_value, st_lock_duration)
         unlock_time = (chain.time() + st_lock_duration * WEEK) // WEEK * WEEK
 
@@ -110,6 +109,35 @@ class StateMachine:
                 "unlock_time": tx.events["Deposit"]["locktime"],
             }
             print(st_account, self.voting_balances[st_account])
+
+    def rule_deposit_for_on_behalf(self, st_account, st_value, st_lock_duration):
+        amount = self.voting_escrow.locked(st_account)[1]
+        if st_value == 0:
+            with brownie.reverts("dev: need non-zero value"):
+                self.voting_escrow.deposit_for_on_behalf(
+                    st_account, st_value, {"from": self.admin, "gas": GAS_LIMIT}
+                )
+
+        elif self.voting_balances[st_account]["value"] == 0:
+            with brownie.reverts("No existing lock found"):
+                self.voting_escrow.deposit_for_on_behalf(
+                    st_account, st_value, {"from": self.admin, "gas": GAS_LIMIT}
+                )
+
+        elif amount <= chain.time():
+            with brownie.reverts("Cannot add to expired lock. Withdraw"):
+                self.voting_escrow.deposit_for_on_behalf(
+                    st_account, st_value, {"from": self.admin, "gas": GAS_LIMIT}
+                )
+
+        else:
+            tx = self.voting_escrow.deposit_for_on_behalf(
+                st_account, st_value, {"from": self.admin, "gas": GAS_LIMIT}
+            )
+            self.voting_balances[st_account] = {
+                "value": st_value,
+                "unlock_time": tx.events["Deposit"]["locktime"],
+            }
 
     def rule_increase_amount(self, st_account, st_value):
         if st_value == 0:

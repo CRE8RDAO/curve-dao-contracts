@@ -29,6 +29,6 @@ brownie console --network mainnet-fork
 # Testing
 
 ```bash
-brownie test tests/unitary/VotingEscrow tests/unitary/FeeDistribution tests/unitary/ERC20CRV
-brownie test tests/integration/VotingEscrow tests/integration/FeeDistributor tests/integration/ERC20CRV
+brownie test tests/unitary/VotingEscrow tests/unitary/FeeDistribution
+brownie test tests/integration/VotingEscrow tests/integration/FeeDistributor
 ```
