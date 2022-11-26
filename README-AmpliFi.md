@@ -16,14 +16,19 @@ brownie networks add Ethereum arbitrum-goerli host=https://mainnet.infura.io/v3/
 # Setup
 
 ```bash
-brownie run scripts/deployment/deploy_dao development --network mainnet-fork
-brownie run scripts/deployment/deploy_dao development --network goerli
+brownie run scripts/deployment/deploy_amplifi development --network mainnet-fork
+brownie run scripts/deployment/deploy_amplifi development --network arbitrum-goerli
+brownie run scripts/deployment/deploy_amplifi production --network arbitrum-goerli
+brownie run scripts/deployment/deploy_amplifi production --network arbitrum
+
 ```
 
 # Other commands
 
 ```bash
 brownie console --network mainnet-fork
+brownie networks add Ethereum arbitrum-goerli host=<RPC_ALCHEMY_URL> chainid=421613
+brownie networks add Ethereum arbitrum host=<RPC_ALCHEMY_URL> chainid=42161
 ```
 
 # Testing

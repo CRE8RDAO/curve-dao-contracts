@@ -389,6 +389,24 @@ def burn(_coin: address) -> bool:
 
     return True
 
+@external
+def burn_with_amount(_coin: address, amount: uint256) -> bool:
+    """
+    @notice Receive 3CRV into the contract and trigger a token checkpoint
+    @param _coin Address of the coin being received (must be 3CRV)
+    @param amount Amount of the coin being received (must be 3CRV)
+    @return bool success
+    """
+    assert _coin == self.token
+    assert not self.is_killed
+
+    if amount != 0:
+        ERC20(_coin).transferFrom(msg.sender, self, amount)
+        if self.can_checkpoint_token and (block.timestamp > self.last_token_time + TOKEN_CHECKPOINT_DEADLINE):
+            self._checkpoint_token()
+
+    return True
+
 
 @external
 def commit_admin(_addr: address):

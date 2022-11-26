@@ -430,7 +430,7 @@ def _create_lock_on_behalf(_addr: address, _value: uint256, _unlock_time: uint25
     @param _unlock_time Epoch time when tokens unlock, rounded down to whole weeks
     @param _msg_sender 
     """
-    self.assert_not_contract(_msg_sender)
+    # self.assert_not_contract(_msg_sender)
     unlock_time: uint256 = (_unlock_time / WEEK) * WEEK  # Locktime is rounded down to weeks
     _locked: LockedBalance = self.locked[_addr]
     assert _msg_sender == self.admin  # dev: admin only
